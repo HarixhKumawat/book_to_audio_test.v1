@@ -1,3 +1,5 @@
+NOTE: i do not like this implementation will be making v2 soon
+
 # book_to_audio
 
 Book in (EPUB, PDF, TXT). Audiobook out: MP3 part(s) with chapter
