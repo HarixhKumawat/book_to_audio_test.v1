@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Casting Studio</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --panel: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e2e0da;
+    --accent: #2f5fd0; --accent-ink: #ffffff; --ok: #1f7a4a; --warn: #a86400; --bad: #b3261e;
+    --chip: #efede8; --code: #f1efe9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141416; --panel: #1d1d20; --ink: #ececef; --muted: #9a9aa2; --line: #303036;
+      --accent: #7aa2ff; --accent-ink: #0d1530; --ok: #5fcf8f; --warn: #f0b35a; --bad: #ff8a80;
+      --chip: #2a2a2f; --code: #232327;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; display: flex; gap: 16px; align-items: center; padding: 12px 20px;
+           background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; }
+  header .book { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40ch; }
+  nav { display: flex; gap: 4px; margin-left: auto; }
+  nav button.tab { background: none; color: var(--muted); border: none; padding: 8px 12px; border-radius: 8px; }
+  nav button.tab.on { background: var(--chip); color: var(--ink); }
+  main { max-width: 1180px; margin: 0 auto; padding: 20px 16px 80px; }
+  section.view { display: none; }
+  section.view.on { display: block; }
+  button, .button { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px;
+           padding: 6px 12px; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  input, textarea, select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; width: 100%; }
+  textarea { resize: vertical; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  .muted { color: var(--muted); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .card h2 { font-size: 15px; margin: 0; display: flex; gap: 8px; align-items: center; }
+  .id { font: 12px ui-monospace, Consolas, monospace; background: var(--chip); padding: 2px 6px; border-radius: 6px; }
+  .chip { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--chip); }
+  .chip.ok { color: var(--ok); } .chip.warn { color: var(--warn); } .chip.bad { color: var(--bad); }
+  .note { font-size: 13px; margin-top: 6px; }
+  .note.bad { color: var(--bad); } .note.warn { color: var(--warn); }
+  audio { width: 100%; height: 36px; margin-top: 8px; }
+  .split { display: grid; grid-template-columns: 240px 1fr; gap: 16px; }
+  .files button { display: block; width: 100%; text-align: left; margin-bottom: 4px; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .files button.on { border-color: var(--accent); }
+  #editor { font: 13px/1.5 ui-monospace, Consolas, monospace; min-height: 60vh; background: var(--code); }
+  .lines { max-height: 60vh; overflow: auto; font-size: 14px; }
+  .line { display: grid; grid-template-columns: 28px 130px 1fr; gap: 8px; padding: 6px 4px; border-bottom: 1px solid var(--line); align-items: start; }
+  .line .who { font: 12px ui-monospace, Consolas, monospace; font-weight: 600; }
+  .line.title .text { font-weight: 600; }
+  .line.scene { color: var(--muted); grid-template-columns: 1fr; text-align: center; }
+  .issues { margin-top: 12px; font-size: 13px; }
+  .issues div { padding: 4px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .issues .error { color: var(--bad); } .issues .warn { color: var(--warn); }
+  pre.proposal { white-space: pre-wrap; font: 14px/1.5 system-ui, sans-serif; margin: 0; }
+  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg);
+           padding: 8px 16px; border-radius: 8px; display: none; max-width: 90vw; z-index: 9; }
+  #toast.bad { background: var(--bad); color: #fff; }
+  .rec { color: var(--bad); font-weight: 600; }
+  @media (max-width: 760px) { .split { grid-template-columns: 1fr; } nav { margin-left: 0; } .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Casting Studio</h1>
+  <span class="book" id="book"></span>
+  <span class="chip" id="server"></span>
+  <nav>
+    <button class="tab on" data-view="overview">Overview</button>
+    <button class="tab" data-view="cast">Cast</button>
+    <button class="tab" data-view="script">Script</button>
+  </nav>
+  <button class="primary" id="finish">Finish</button>
+</header>
+
+<main>
+  <section class="view on" id="overview">
+    <div class="card">
+      <h2>How to use this window</h2>
+      <ol class="muted">
+        <li><b>Cast</b>: for each voice, upload or record a clip of 5&ndash;30 s, and type <b>exactly</b> what the clip says.
+            No clip? Write a voice description and press <i>Generate</i>.</li>
+        <li>Play the clip, then test any line with <i>Preview</i>. When it is right, press <b>Approve</b>.</li>
+        <li><b>Script</b>: read and edit who says what. Press <i>Check</i> before you finish.</li>
+        <li>Press <b>Finish</b>. The agent continues with your choices.</li>
+      </ol>
+      <p class="muted" id="readiness"></p>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2>Proposal</h2>
+      <pre class="proposal" id="proposal"></pre>
+    </div>
+  </section>
+
+  <section class="view" id="cast">
+    <div class="grid" id="castGrid"></div>
+    <div class="card" style="margin-top:16px">
+      <h2>Add a voice</h2>
+      <div class="row" style="margin-top:8px">
+        <input id="newId" placeholder="ID, e.g. MRS_HUDSON" style="max-width:200px">
+        <input id="newName" placeholder="Name" style="max-width:220px">
+      </div>
+      <label>Voice description</label>
+      <input id="newVoice" placeholder="elderly woman, Scottish, dry humour, low and slow">
+      <div class="row" style="margin-top:8px"><button id="addMember">Add</button>
+        <span class="muted">Then give lines to this ID in the script.</span></div>
+    </div>
+  </section>
+
+  <section class="view" id="script">
+    <div class="split">
+      <div>
+        <div class="files" id="files"></div>
+        <button class="primary" id="check" style="width:100%;margin-top:8px">Check script</button>
+        <div class="issues" id="issues"></div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <b id="fileName"></b>
+          <span style="margin-left:auto"></span>
+          <button id="viewLines">Lines</button>
+          <button id="viewEdit">Edit</button>
+          <button class="primary" id="save" disabled>Save</button>
+        </div>
+        <p class="muted note">One line per segment: <code>SPEAKER: text</code>. <code># Title</code>, <code>---</code> scene break.
+          In faithful mode every word of the book must stay, in order.</p>
+        <div class="lines" id="lines"></div>
+        <textarea id="editor" spellcheck="false" style="display:none"></textarea>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="toast"></div>
+
+<template id="memberTpl">
+  <div class="card member">
+    <h2><span class="id"></span><span class="name"></span><span style="margin-left:auto" class="chip state"></span></h2>
+    <div class="muted note counts"></div>
+    <label>Name</label><input class="f-name">
+    <label>Voice description (used by Generate)</label><textarea class="f-voice" rows="2"></textarea>
+    <div class="row" style="margin-top:6px"><button class="b-save">Save</button></div>
+
+    <label>Reference clip</label>
+    <div class="note clipnote"></div>
+    <audio class="player" controls preload="none"></audio>
+    <label>Exact transcript of the clip</label>
+    <textarea class="f-transcript" rows="3" placeholder="Type every word the clip says, nothing else."></textarea>
+    <div class="row" style="margin-top:6px">
+      <button class="b-transcript">Save transcript</button>
+      <label class="button" style="margin:0;font-size:inherit;color:inherit">Upload<input type="file" class="f-file" accept="audio/*,video/webm,video/mp4" hidden></label>
+      <button class="b-record">Record</button>
+      <button class="b-seed">Generate</button>
+    </div>
+    <div class="note recnote"></div>
+
+    <label>Preview a line</label>
+    <div class="row"><input class="f-preview" value="I never expected to find you here, of all places."><button class="b-preview">Play</button></div>
+    <audio class="previewPlayer" controls preload="none" style="display:none"></audio>
+
+    <div class="row" style="margin-top:12px"><button class="primary b-approve">Approve</button></div>
+  </div>
+</template>
+
+<script>
+const TOKEN = "__STUDIO_TOKEN__";
+const CAST_FILE = "00-cast.md";
+const READ_ALOUD = "I have always believed that every old house keeps a few secrets. Some of them are worth keeping, and some are simply waiting for the right person to listen.";
+let state = null, currentFile = null, dirty = false;
+const colors = {};
+
+const $ = (sel, root = document) => root.querySelector(sel);
+
+async function api(path, { method = "GET", body, raw = false } = {}) {
+  const res = await fetch(path, {
+    method,
+    headers: { "X-Studio-Token": TOKEN, "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let message = res.statusText;
+    try { message = (await res.json()).error || message; } catch (e) {}
+    throw new Error(message);
+  }
+  return raw ? res.blob() : res.json();
+}
+
+function toast(message, bad = false) {
+  const el = $("#toast");
+  el.textContent = message;
+  el.className = bad ? "bad" : "";
+  el.style.display = "block";
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => (el.style.display = "none"), bad ? 7000 : 2500);
+}
+
+async function busy(button, work) {
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = "…";
+  try { return await work(); }
+  catch (error) { toast(error.message, true); }
+  finally { button.disabled = false; button.textContent = label; }
+}
+
+function colorOf(id) {
+  if (!colors[id]) {
+    const hue = [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+    colors[id] = `hsl(${hue} 55% 50%)`;
+  }
+  return colors[id];
+}
+
+// ------------------------------------------------------------ state
+
+async function load() {
+  state = await api("/api/state");
+  render();
+}
+
+function render() {
+  $("#book").textContent = state.book;
+  const server = $("#server");
+  server.textContent = state.server.problem ? "Drama 3: offline" : "Drama 3: ready";
+  server.className = "chip " + (state.server.problem ? "bad" : "ok");
+  server.title = state.server.problem || "";
+  $("#proposal").textContent = state.proposal || "No proposal yet. The agent writes it after the analysis.";
+
+  const speaking = state.cast.filter(m => m.lines);
+  const approved = speaking.filter(m => m.approved).length;
+  $("#readiness").textContent = `${approved} of ${speaking.length} speaking voices approved.` + (state.ready ? " Ready to render." : "");
+
+  renderCast();
+  renderFiles();
+}
+
+function renderCast() {
+  const grid = $("#castGrid");
+  grid.innerHTML = "";
+  for (const m of state.cast) {
+    const card = $("#memberTpl").content.firstElementChild.cloneNode(true);
+    card.dataset.id = m.id;
+    $(".id", card).textContent = m.id;
+    $(".id", card).style.borderLeft = `4px solid ${colorOf(m.id)}`;
+    $(".name", card).textContent = m.name;
+    $(".counts", card).textContent = m.lines ? `${m.lines} lines · ${m.words.toLocaleString()} words` : "no lines in the script";
+    $(".f-name", card).value = m.name;
+    $(".f-voice", card).value = m.voice;
+    $(".f-transcript", card).value = m.clip.transcript;
+
+    const stateChip = $(".state", card);
+    stateChip.textContent = m.approved ? "approved" : m.clip.exists ? "not approved" : "no clip";
+    stateChip.className = "chip state " + (m.approved ? "ok" : m.clip.exists ? "warn" : "bad");
+
+    const note = $(".clipnote", card);
+    $(".player", card).style.display = m.clip.exists ? "" : "none";
+    if (!m.clip.exists) {
+      note.textContent = "No clip yet. Upload, record, or generate one.";
+      note.className = "note bad";
+    } else {
+      const where = m.clip.origin === "global" ? " (shared voices/ folder)" : "";
+      note.textContent = `${m.clip.seconds} s${where}. ${m.clip.error || m.clip.warning || ""}`;
+      note.className = "note " + (m.clip.error ? "bad" : m.clip.warning ? "warn" : "muted");
+      loadAudio($(".player", card), `/api/voice/${m.id}/clip`);
+    }
+
+    const approve = $(".b-approve", card);
+    approve.textContent = m.approved ? "Revoke approval" : "Approve";
+    approve.classList.toggle("primary", !m.approved);
+    approve.disabled = !m.clip.exists || !!m.clip.error;
+
+    wireMember(card, m);
+    grid.appendChild(card);
+  }
+}
+
+async function loadAudio(player, path, body) {
+  const blob = await api(path, { method: body ? "POST" : "GET", body, raw: true });
+  if (player.src) URL.revokeObjectURL(player.src);
+  player.src = URL.createObjectURL(blob);
+  player.style.display = "";
+  return player;
+}
+
+function wireMember(card, m) {
+  const id = m.id;
+  const after = s => { state = s; render(); };
+
+  $(".b-save", card).onclick = e => busy(e.target, async () => {
+    after(await api("/api/cast", { method: "POST", body: { id, name: $(".f-name", card).value, voice: $(".f-voice", card).value } }));
+    toast("saved");
+  });
+
+  $(".b-transcript", card).onclick = e => busy(e.target, async () => {
+    after(await api(`/api/voice/${id}/transcript`, { method: "POST", body: { text: $(".f-transcript", card).value } }));
+    toast("transcript saved; approve again");
+  });
+
+  $(".f-file", card).onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const transcript = $(".f-transcript", card).value.trim();
+    if (!transcript) { toast("Type the exact transcript first, then upload.", true); e.target.value = ""; return; }
+    await busy($(".b-record", card), async () => {
+      after(await api(`/api/voice/${id}/clip`, { method: "POST", body: { data: await dataUrl(file), filename: file.name, transcript } }));
+      toast("clip stored");
+    });
+  };
+
+  $(".b-record", card).onclick = e => record(card, id, e.target, after);
+
+  $(".b-seed", card).onclick = e => busy(e.target, async () => {
+    if (!confirm(`Generate a new clip for ${id} from its description? The current clip is replaced.`)) return;
+    after(await api(`/api/voice/${id}/seed`, { method: "POST", body: {} }));
+    toast("generated; listen, then approve");
+  });
+
+  $(".b-preview", card).onclick = e => busy(e.target, async () => {
+    const player = await loadAudio($(".previewPlayer", card), `/api/voice/${id}/preview`, { text: $(".f-preview", card).value });
+    player.play();
+  });
+
+  $(".b-approve", card).onclick = e => busy(e.target, async () => {
+    after(await api(`/api/voice/${id}/approve`, { method: "POST", body: { approval: m.approved ? "revoked" : "approved" } }));
+  });
+}
+
+function dataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Microphone: record, then store with the transcript the user read aloud.
+async function record(card, id, button, after) {
+  const note = $(".recnote", card);
+  if (button.recorder) { button.recorder.stop(); return; }
+
+  const transcriptBox = $(".f-transcript", card);
+  if (!transcriptBox.value.trim()) transcriptBox.value = READ_ALOUD;
+
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (error) { toast("Microphone blocked: " + error.message, true); return; }
+
+  const recorder = new MediaRecorder(stream);
+  const chunks = [];
+  recorder.ondataavailable = e => chunks.push(e.data);
+  recorder.onstop = async () => {
+    stream.getTracks().forEach(t => t.stop());
+    button.recorder = null;
+    button.textContent = "Record";
+    note.textContent = "";
+    const blob = new Blob(chunks, { type: recorder.mimeType });
+    const ext = recorder.mimeType.includes("mp4") ? ".mp4" : recorder.mimeType.includes("ogg") ? ".ogg" : ".webm";
+    await busy(button, async () => {
+      after(await api(`/api/voice/${id}/clip`, { method: "POST", body: { data: await dataUrl(blob), filename: "recording" + ext, transcript: transcriptBox.value } }));
+      toast("recording stored; listen, then approve");
+    });
+  };
+
+  button.recorder = recorder;
+  recorder.start();
+  button.textContent = "Stop";
+  const started = Date.now();
+  note.innerHTML = '<span class="rec">● recording</span> Read the transcript box aloud, word for word. 5–30 s.';
+  const tick = setInterval(() => {
+    if (!button.recorder) { clearInterval(tick); return; }
+    const s = Math.round((Date.now() - started) / 1000);
+    note.innerHTML = `<span class="rec">● ${s} s</span> Read the transcript box aloud, word for word.`;
+    if (s >= 55) recorder.stop();
+  }, 500);
+}
+
+// ------------------------------------------------------------ script
+
+function renderFiles() {
+  const box = $("#files");
+  box.innerHTML = "";
+  for (const name of state.files) {
+    const b = document.createElement("button");
+    b.textContent = name;
+    b.className = name === currentFile ? "on" : "";
+    b.onclick = () => openFile(name);
+    box.appendChild(b);
+  }
+  const firstChapter = state.files.find(n => n !== CAST_FILE) || state.files[0];
+  if (!currentFile && firstChapter) openFile(firstChapter);
+}
+
+async function openFile(name, line) {
+  if (dirty && !confirm("Discard unsaved changes?")) return;
+  const data = await api(`/api/script/${encodeURIComponent(name)}`);
+  currentFile = name;
+  dirty = false;
+  $("#save").disabled = true;
+  $("#fileName").textContent = name;
+  $("#editor").value = data.text;
+  renderFiles();
+  renderLines();
+  $("#viewLines").disabled = name === CAST_FILE;
+  showEditor(name === CAST_FILE || !!line);
+  if (line) {
+    const editor = $("#editor");
+    const offset = data.text.split("\n").slice(0, line - 1).join("\n").length + 1;
+    editor.focus();
+    editor.setSelectionRange(offset, offset);
+  }
+}
+
+function renderLines() {
+  const box = $("#lines");
+  box.innerHTML = "";
+  const known = new Set(state.cast.map(m => m.id));
+  let current = null;
+  for (const raw of $("#editor").value.split("\n")) {
+    const text = raw.replace(/<!--.*?-->/g, "").trim();
+    if (!text) { current = null; continue; }
+    const row = document.createElement("div");
+    if (/^-{3,}$|^\*\s*\*\s*\*$/.test(text)) {
+      row.className = "line scene"; row.textContent = "— scene break —"; box.appendChild(row); current = null; continue;
+    }
+    const heading = text.match(/^#{1,3}\s+(.*)$/);
+    const label = text.match(/^([A-Z][A-Z0-9_]{0,31}):\s*(.*)$/);
+    if (!heading && !label && current) { current.textEl.textContent += " " + text; continue; }
+
+    const speaker = heading ? "NARRATOR" : label ? label[1] : "NARRATOR";
+    const body = heading ? heading[1] : label ? label[2] : text;
+    row.className = "line" + (heading ? " title" : "");
+    const play = document.createElement("button");
+    play.textContent = "▶";
+    play.title = "Preview in this voice";
+    play.style.padding = "0 6px";
+    const who = document.createElement("span");
+    who.className = "who";
+    who.textContent = speaker;
+    who.style.color = known.has(speaker) ? colorOf(speaker) : "var(--bad)";
+    const textEl = document.createElement("span");
+    textEl.className = "text";
+    textEl.textContent = body;
+    play.onclick = () => busy(play, async () => {
+      const audio = new Audio(URL.createObjectURL(await api(`/api/voice/${speaker}/preview`, { method: "POST", body: { text: textEl.textContent }, raw: true })));
+      audio.play();
+    });
+    row.append(play, who, textEl);
+    box.appendChild(row);
+    current = heading ? null : { textEl };
+  }
+}
+
+function showEditor(on) {
+  $("#editor").style.display = on ? "" : "none";
+  $("#lines").style.display = on ? "none" : "";
+  if (!on) renderLines();
+}
+
+$("#viewLines").onclick = () => showEditor(false);
+$("#viewEdit").onclick = () => showEditor(true);
+$("#editor").oninput = () => { dirty = true; $("#save").disabled = false; };
+$("#save").onclick = e => busy(e.target, async () => {
+  await api(`/api/script/${encodeURIComponent(currentFile)}`, { method: "PUT", body: { text: $("#editor").value } });
+  dirty = false;
+  $("#save").disabled = true;
+  toast("saved");
+  await load();
+});
+
+$("#check").onclick = e => busy(e.target, async () => {
+  const result = await api("/api/check", { method: "POST", body: {} });
+  const box = $("#issues");
+  box.innerHTML = "";
+  const errors = result.issues.filter(i => i.severity === "error").length;
+  const head = document.createElement("p");
+  head.textContent = `${errors} errors, ${result.issues.length - errors} warnings · ${result.estimate.requests} lines to render · ~${result.estimate.hours} h`;
+  box.appendChild(head);
+  for (const issue of result.issues) {
+    const row = document.createElement("div");
+    row.className = issue.severity;
+    row.textContent = `${issue.where}: ${issue.message}`;
+    const m = issue.where.match(/([^\\/]+\.md)(?::(\d+))?/);
+    if (m) row.onclick = () => openFile(m[1], m[2] ? Number(m[2]) : undefined);
+    box.appendChild(row);
+  }
+});
+
+// ------------------------------------------------------------ shell
+
+// Tabs follow the URL hash (#cast, #script), so a reload keeps the place.
+function showView(name) {
+  document.querySelectorAll("nav .tab").forEach(t => t.classList.toggle("on", t.dataset.view === name));
+  document.querySelectorAll("section.view").forEach(v => v.classList.toggle("on", v.id === name));
+}
+for (const tab of document.querySelectorAll("nav .tab")) {
+  tab.onclick = () => { history.replaceState(null, "", "#" + tab.dataset.view); showView(tab.dataset.view); };
+}
+if (["overview", "cast", "script"].includes(location.hash.slice(1))) showView(location.hash.slice(1));
+
+$("#addMember").onclick = e => busy(e.target, async () => {
+  state = await api("/api/cast", { method: "POST", body: { id: $("#newId").value, name: $("#newName").value, voice: $("#newVoice").value } });
+  $("#newId").value = $("#newName").value = $("#newVoice").value = "";
+  render();
+  toast("added");
+});
+
+$("#finish").onclick = e => busy(e.target, async () => {
+  if (dirty && !confirm("Unsaved script changes will be lost. Finish anyway?")) return;
+  if (!state.ready && !confirm("Some speaking voices are not approved. Finish anyway?")) return;
+  await api("/api/finish", { method: "POST", body: {} });
+  document.body.innerHTML = "<main><div class='card'><h2>Done</h2><p class='muted'>You can close this window. The agent continues in the terminal.</p></div></main>";
+});
+
+window.onbeforeunload = () => (dirty ? "unsaved" : undefined);
+load().catch(error => toast(error.message, true));
+</script>
+</body>
+</html>

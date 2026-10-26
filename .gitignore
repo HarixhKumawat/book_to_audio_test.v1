@@ -1,0 +1,19 @@
+# books and generated audio
+books/*
+!books/README.md
+work/
+output/
+dist/
+engine/
+*.mp3
+
+# voice clips are personal assets; keep only the README
+voices/*
+!voices/README.md
+
+# python
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+build/

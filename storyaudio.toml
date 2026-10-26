@@ -1,0 +1,38 @@
+# storyaudio settings. Every key is optional; missing keys use code defaults.
+# CLI flags override this file.
+
+[server]
+# Drama 3 server started with `sgl-omni serve --model-path fishaudio/drama-3-int4`.
+url = "http://localhost:8000"
+timeout_s = 600
+workers = 4          # parallel requests; the server runs 16 at a time by default
+retries = 3
+
+[sampling]
+temperature = 1.0
+top_p = 0.9
+# top_k unset on purpose: a cap on the main token can make speech fall silent.
+max_new_tokens = 2048  # about 95 s of audio at 21.5 frames/s
+
+[script]
+max_segment_chars = 400   # longer segments are split on sentence ends before TTS
+
+[audio]
+bitrate = "128k"
+loudness_lufs = -19.0
+gap_segment_ms = 350
+gap_speaker_ms = 500
+gap_scene_ms = 1200
+gap_chapter_ms = 2500
+
+[parts]
+target_s = 3600   # 1 h per MP3 part when the book allows it
+hard_max_s = 7200 # never exceed 2 h
+
+[engine]
+# Local Drama 3 server managed by `storyaudio server ...`.
+driver = "auto"       # auto | docker | native (Linux)
+checkpoint = "auto"   # auto | int4 | fp8; auto picks from GPU memory
+port = 8000           # keep equal to the port in [server] url
+autostart = "on"      # start the installed engine when a command needs it
+ready_timeout_s = 1800
